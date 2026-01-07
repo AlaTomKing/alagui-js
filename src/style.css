@@ -1,0 +1,29 @@
+#debugGuiFrame {
+    position: fixed;
+    width: 100vw;
+    height: 100vh;
+    z-index: 100;
+    background-color: rgb(115,140,153);
+}
+
+.debugGuiWindow {
+    box-sizing: border-box;
+    position: fixed;
+    border-style: solid;
+    overflow: hidden;
+}
+
+.debugGuiWindow .titleBar {
+    box-sizing: border-box;
+    position: absolute;
+    border: none;
+    width: 100%;
+}
+
+.debugGuiWindow .innerFrame {
+    box-sizing: border-box;
+    position: absolute;
+    border: none;
+    bottom: 0;
+    width: 100%;
+}

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <!--<script src="../index.js"></script>-->
+    <style>
+        body {
+            background-color: black;
+            margin: 0;
+            color: white;
+        }
+    </style>
+
+    <link href="../src/style.css" rel="stylesheet" type="text/css"></link>
+</head>
+<body>
+    <script type="module">
+        import { DebugGui, DebugVec2 } from "../src/index.js"
+
+        const canvas = document.querySelector("#canvas");
+        const outputText = document.querySelector("#out");
+
+        let win = new DebugGui.Window();
+        let win2 = new DebugGui.Window();
+        let win3 = new DebugGui.Window();
+
+        win2.SetPosition(new DebugVec2(200,150));
+        win3.SetPosition(new DebugVec2(200+140,240));
+
+        //window.Text("Text");
+
+        win.Show();
+        win2.Show();
+        win3.Show();
+    </script>
+</body>
+</html>
