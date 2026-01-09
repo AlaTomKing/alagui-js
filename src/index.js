@@ -20,11 +20,35 @@ export const DebugRgba = class {
 }
 
 const rgbaString = (rgba) => `rgba(${rgba.r},${rgba.g},${rgba.b},${rgba.a/255})`;
+const rgbString = (rgb,a) => `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
 const px = (x) => x + "px";
 const configStyle = (style, obj) => {
     for (const [name, val] of Object.entries(obj)) {
         style[name] = val;
     }
+}
+
+let clickCount = 0, clickTarget, singleClickTimer;
+const doubleClickEvent = (e,callback) => {
+    e.addEventListener("click", (e) => {
+        console.log("doubleClick")
+        if (e.button === 0) {
+            if (clickTarget !== e.target) { clearTimeout(singleClickTimer); clickCount = 0};
+            clickTarget = e.target;
+
+            clickCount++;
+            if (clickCount === 1) {
+                singleClickTimer = setTimeout(() => {
+                    clickCount = 0;
+                    console.log(clickCount)
+                }, 400);
+            } else if (clickCount === 2) {
+                clearTimeout(singleClickTimer);
+                clickCount = 0;
+                callback();
+            }
+        }
+    })
 }
 
 const configPreset = {
@@ -270,8 +294,10 @@ const DebugGuiFrame = document.createElement("div");
 DebugGuiFrame.id = "debugGuiFrame";
 
 let moveTarget = null;
+let resizeTarget = null, resizeFlag;
 let frameStartPosX, frameStartPosY;
 let mouseStartPosX, mouseStartPosY;
+let frameStartSizeX, frameStartSizeY;
 
 DebugGuiFrame.addEventListener("mousemove", (e) => {
     if (moveTarget 
@@ -280,13 +306,50 @@ DebugGuiFrame.addEventListener("mousemove", (e) => {
         const deltaX = e.clientX - mouseStartPosX;
         const deltaY = e.clientY - mouseStartPosY;
 
-        moveTarget.__position.x = frameStartPosX + deltaX;
-        moveTarget.__position.y = frameStartPosY + deltaY;
+        moveTarget.position.x = frameStartPosX + deltaX;
+        moveTarget.position.y = frameStartPosY + deltaY;
 
-        configStyle(moveTarget.gui.style, {
-            left: px(moveTarget.__position.x),
-            top: px(moveTarget.__position.y),
-        });
+        moveTarget.SetPosition(moveTarget.position);
+    } else if (resizeTarget
+        && e.clientX >= 0 && e.clientX < window.innerWidth &&
+        e.clientY >= 0 && e.clientY < window.innerHeight) {
+        const deltaX = e.clientX - mouseStartPosX;
+        const deltaY = e.clientY - mouseStartPosY;
+
+        switch (resizeFlag) {
+            case 0: // resize bottom right
+                resizeTarget.size.x = Math.max(frameStartSizeX + deltaX, 32);
+                resizeTarget.size.y = Math.max(frameStartSizeY + deltaY, 32);
+                document.body.style.cursor = (resizeTarget.size.x === 32 && resizeTarget.size.y === 32) ? "se-resize" : "nwse-resize";
+                break;
+            case 1: // resize bottom left
+                resizeTarget.size.x = Math.max(frameStartSizeX - deltaX, 32);
+                resizeTarget.size.y = Math.max(frameStartSizeY + deltaY, 32);
+                resizeTarget.position.x = Math.min(frameStartPosX + deltaX, frameStartPosX + frameStartSizeX - 32);
+                document.body.style.cursor = (resizeTarget.size.x === 32 && resizeTarget.size.y === 32) ? "sw-resize" : "nesw-resize";
+                break;
+            case 2: // resize top
+                resizeTarget.size.y = Math.max(frameStartSizeY - deltaY, 32);
+                resizeTarget.position.y = Math.min(frameStartPosY + deltaY, frameStartPosY + frameStartSizeY - 32);
+                document.body.style.cursor = (resizeTarget.size.y === 32) ? "n-resize" : "ns-resize";
+                break;
+            case 3: // resize bottom
+                resizeTarget.size.y = Math.max(frameStartSizeY + deltaY, 32);
+                document.body.style.cursor = (resizeTarget.size.y === 32) ? "s-resize" : "ns-resize";
+                break;
+            case 4: // resize left
+                resizeTarget.size.x = Math.max(frameStartSizeX - deltaX, 32);
+                resizeTarget.position.x = Math.min(frameStartPosX + deltaX, frameStartPosX + frameStartSizeX - 32);
+                document.body.style.cursor = (resizeTarget.size.x === 32) ? "w-resize" : "ew-resize";
+                break;
+            case 5: // resize right
+                resizeTarget.size.x = Math.max(frameStartSizeX + deltaX, 32);
+                document.body.style.cursor = (resizeTarget.size.x === 32) ? "e-resize" : "ew-resize";
+                break;
+        }
+
+        resizeTarget.SetPosition(resizeTarget.position);
+        resizeTarget.SetSize(resizeTarget.size);
     }
 });
 
@@ -296,7 +359,13 @@ DebugGuiFrame.addEventListener("mousedown", (e) => {
             w.MakeInactive();
         });
     }
-})
+});
+
+DebugGuiFrame.addEventListener("mouseup", (e) => {
+    if (e.button === 0) {
+        moveTarget = null; resizeTarget = null;
+    }
+});
 
 document.body.appendChild(DebugGuiFrame);
 
@@ -314,14 +383,14 @@ DebugGui.__WidgetManager = class {
 }
 
 DebugGui.Window = class extends DebugGui.__WidgetManager {
-    __position = new DebugVec2(60, 60);
-    __size = new DebugVec2(200, 150);
+    position = new DebugVec2(60, 60);
+    size = new DebugVec2(200, 150);
 
-    __stColor = defaultConfig.color;
-    __stSize = defaultConfig.size;
-    __stTextSize = defaultConfig.textSize;
+    stColor = defaultConfig.color;
+    stSize = defaultConfig.size;
+    stTextSize = defaultConfig.textSize;
 
-    __options = windowOptions;
+    options = windowOptions;
 
     active = false;
     collapse = false;
@@ -330,17 +399,41 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
         super();
     }
 
-    SetPosition(vec2) {
-        this.__position = vec2;
+    SetPosition(x, y) {
+        if (x instanceof Object) {
+            this.position = x;
+        } else {
+            this.position = new DebugVec2(x, y);
+        }
+
+        if (this.gui) {
+            configStyle(this.gui.style, {
+                left: px(this.position.x),
+                top: px(this.position.y),
+            });
+        }
     }
 
-    SetSize(vec2) {
-        this.__size = vec2;
+    SetSize(x) {
+        if (x instanceof Object) {
+            this.size = x;
+        } else {
+            this.size = new DebugVec2(x, y);
+        }
+
+        if (this.gui) {
+            configStyle(this.gui.style, {
+                width: px(this.size.x),
+                height: px(this.size.y),
+            });
+        }
     }
 
     MakeActive() {
         if (this.gui && !this.active) {
-            this.gui_titlebar.style.backgroundColor = rgbaString(this.__stColor.TitleBgActive);
+            if (!this.collapse) {
+                this.gui_titlebar.style.backgroundColor = rgbaString(this.stColor.TitleBgActive);
+            }
             this.active = true;
 
             const initialOrder = Number(this.gui.style.zIndex);
@@ -359,7 +452,9 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
 
     MakeInactive() {
         if (this.gui && this.active) {
-            this.gui_titlebar.style.backgroundColor = rgbaString(this.__stColor.TitleBg);
+            if (!this.collapse) {
+                this.gui_titlebar.style.backgroundColor = rgbaString(this.stColor.TitleBg);
+            }
             this.active = false;
         }
     }
@@ -369,9 +464,11 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
         this.collapse = !this.collapse;
 
         if (this.collapse) {
+            this.gui_titlebar.style.backgroundColor = rgbaString(this.stColor.TitleBgCollapsed);
             this.gui.style.height = this.gui_titlebar.style.height;
         } else {
-            this.gui.style.height = px(this.__size.y);
+            this.gui_titlebar.style.backgroundColor = rgbaString(this.stColor.TitleBgActive);
+            this.gui.style.height = px(this.size.y);
         }
     }
 
@@ -383,58 +480,446 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
         //base.style.backgroundColor = rgbaString(this.__stColor.FrameBg);
 
         configStyle(base.style, {
-            borderColor: rgbaString(this.__stColor.Border),
-            borderWidth: px(this.__stSize.WindowBorderSize),
-
-            left: px(this.__position.x),
-            top: px(this.__position.y),
-            width: px(this.__size.x),
-            height: px(this.__size.y),
-
-            borderRadius: px(this.__stSize.WindowRounding),
+            left: px(this.position.x),
+            top: px(this.position.y),
+            width: px(this.size.x),
+            height: px(this.size.y),
         })
+
+        const content = document.createElement("div");
+        content.className = "debugGuiWindow content";
+        content.style.borderRadius = px(this.stSize.WindowRounding);
 
         const titleBar = document.createElement("div");
         titleBar.className = "debugGuiWindow titleBar";
 
-        titleBar.style.height = px(this.__stTextSize + this.__stSize.FramePadding.y);
-        titleBar.style.backgroundColor = rgbaString(this.__stColor.TitleBgActive);
+        titleBar.style.height = px(this.stTextSize + this.stSize.FramePadding.y * 2);
+        titleBar.style.backgroundColor = rgbaString(this.stColor.TitleBgActive);
 
         const innerFrame = document.createElement("div");
         innerFrame.className = "debugGuiWindow innerFrame";
 
-        innerFrame.style.top = px(this.__stTextSize + this.__stSize.FramePadding.y);
-        innerFrame.style.backgroundColor = rgbaString(this.__stColor.WindowBg);
+        innerFrame.style.top = px(this.stTextSize + this.stSize.FramePadding.y * 2);
+        innerFrame.style.backgroundColor = rgbaString(this.stColor.WindowBg);
+
+        const borderFrame = document.createElement("div");
+        borderFrame.className = "debugGuiWindow borderFrame";
+
+        borderFrame.style.borderColor = rgbaString(this.stColor.Border),
+        borderFrame.style.borderWidth = px(this.stSize.WindowBorderSize),
+        borderFrame.style.borderRadius = px(this.stSize.WindowRounding),
+
+        // double click to toggle collapse
+        console.log(this.ToggleCollapse)
+        doubleClickEvent(titleBar, () => { this.ToggleCollapse() });
 
         base.addEventListener("mousedown", (e) => {
-            if (e.button === 0 && !moveTarget) {
+            if (e.button === 0 && !moveTarget && e.target !== resizeBottomRight && e.target !== resizeBottomLeft 
+                && e.target !== resizeTopHitbox && e.target !== resizeBottomHitbox && e.target !== resizeLeftHitbox && e.target !== resizeRightHitbox) {
+                console.log("mouseDown")
                 this.MakeActive();
-                moveTarget = this
+                moveTarget = this;
                 mouseStartPosX = e.clientX;
                 mouseStartPosY = e.clientY;
-                frameStartPosX = this.__position.x;
-                frameStartPosY = this.__position.y;
+                frameStartPosX = this.position.x;
+                frameStartPosY = this.position.y;
             };
         });
 
-        base.addEventListener("mouseup", () => {
-            if (moveTarget) moveTarget = null;
+        // #region resize thingys
+
+        // bottom right
+        const resizeBottomRight = document.createElement("div");
+        resizeBottomRight.className = "debugGuiWindow resizeBtn";
+        resizeBottomRight.style.height = px(this.stTextSize + 4);
+        resizeBottomRight.style.right = px(-5);
+        resizeBottomRight.style.bottom = px(-5);
+        //resizeBottomRight.style.cursor = "nwse-resize";
+
+        const resizeTriangleRightFrame = document.createElement("div");
+        resizeTriangleRightFrame.className = "debugGuiWindow resizeBtn triangle";
+        resizeTriangleRightFrame.style.top = px(-2 - this.stSize.WindowBorderSize);
+        resizeTriangleRightFrame.style.left = px(-2 - this.stSize.WindowBorderSize);
+        resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGrip);
+
+        const resizeTriangleRight = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        resizeTriangleRight.setAttribute("viewBox", "0 0 1 1");
+        
+        const rightTrianglePath = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+        rightTrianglePath.setAttribute("points", "0,1 1,1 1,0");
+
+        resizeTriangleRight.appendChild(rightTrianglePath);
+        resizeTriangleRightFrame.appendChild(resizeTriangleRight);
+        resizeBottomRight.appendChild(resizeTriangleRightFrame);
+
+        // bottom left
+        const resizeBottomLeft = document.createElement("div");
+        resizeBottomLeft.className = "debugGuiWindow resizeBtn";
+        resizeBottomLeft.style.height = px(this.stTextSize + 4);
+        resizeBottomLeft.style.left = px(-5);
+        resizeBottomLeft.style.bottom = px(-5);
+        //resizeBottomLeft.style.cursor = "nesw-resize";
+
+        const resizeTriangleLeftFrame = document.createElement("div");
+        resizeTriangleLeftFrame.className = "debugGuiWindow resizeBtn triangle";
+        resizeTriangleLeftFrame.style.top = px(-2 - this.stSize.WindowBorderSize);
+        resizeTriangleLeftFrame.style.right = px(-2 - this.stSize.WindowBorderSize);
+        resizeTriangleLeftFrame.style.fill = "#0000";
+
+        const resizeTriangleLeft = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        resizeTriangleLeft.setAttribute("viewBox", "0 0 1 1");
+
+        const leftTrianglePath = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        leftTrianglePath.setAttribute("points", "0,1 1,1 0,0");
+
+        resizeTriangleLeft.appendChild(leftTrianglePath);
+        resizeTriangleLeftFrame.appendChild(resizeTriangleLeft);
+        resizeBottomLeft.appendChild(resizeTriangleLeftFrame);
+
+        // top
+        const resizeTop = document.createElement("div");
+        resizeTop.className = "resizeLine";
+        resizeTop.style.left = px(0);
+        resizeTop.style.right = px(1);
+        resizeTop.style.top = px(-1);
+        resizeTop.style.height = px(1);
+        resizeTop.style.borderBlock = "solid 1px #0000"
+
+        const resizeTopHitbox = document.createElement("div");
+        resizeTopHitbox.className = "resizeLineHitbox";
+        resizeTopHitbox.style.top = px(-5);
+        resizeTopHitbox.style.left = px(this.stTextSize - 1);
+        resizeTopHitbox.style.right = px(this.stTextSize - 2);
+        resizeTopHitbox.style.height = px(8);
+        //resizeTopHitbox.style.cursor = "ns-resize";
+
+        resizeTop.appendChild(resizeTopHitbox);
+
+        // bottom
+        const resizeBottom = document.createElement("div");
+        resizeBottom.className = "resizeLine";
+        resizeBottom.style.left = px(0);
+        resizeBottom.style.right = px(1);
+        resizeBottom.style.bottom = px(-1);
+        resizeBottom.style.height = px(1);
+        resizeBottom.style.borderBlock = "solid 1px #0000"
+
+        const resizeBottomHitbox = document.createElement("div");
+        resizeBottomHitbox.className = "resizeLineHitbox";
+        resizeBottomHitbox.style.bottom = px(-5);
+        resizeBottomHitbox.style.left = px(this.stTextSize - 1);
+        resizeBottomHitbox.style.right = px(this.stTextSize - 2);
+        resizeBottomHitbox.style.height = px(8);
+        //resizeBottomHitbox.style.cursor = "ns-resize";
+
+        resizeBottom.appendChild(resizeBottomHitbox);
+
+        // left
+        const resizeLeft = document.createElement("div");
+        resizeLeft.className = "resizeLine";
+        resizeLeft.style.left = px(-1);
+        resizeLeft.style.top = px(1);
+        resizeLeft.style.bottom = px(0);
+        resizeLeft.style.width = px(1);
+        resizeLeft.style.borderInline = "solid 1px #0000"
+
+        const resizeLeftHitbox = document.createElement("div");
+        resizeLeftHitbox.className = "resizeLineHitbox";
+        resizeLeftHitbox.style.left = px(-5);
+        resizeLeftHitbox.style.top = px(this.stTextSize - 2);
+        resizeLeftHitbox.style.bottom = px(this.stTextSize - 1);
+        resizeLeftHitbox.style.width = px(8);
+        //resizeLeftHitbox.style.cursor = "ew-resize";
+
+        resizeLeft.appendChild(resizeLeftHitbox);
+
+        // right
+        const resizeRight = document.createElement("div");
+        resizeRight.className = "resizeLine";
+        resizeRight.style.right = px(-1);
+        resizeRight.style.top = px(1);
+        resizeRight.style.bottom = px(0);
+        resizeRight.style.width = px(1);
+        resizeRight.style.borderInline = "solid 1px #0000";
+
+        const resizeRightHitbox = document.createElement("div");
+        resizeRightHitbox.className = "resizeLineHitbox";
+        resizeRightHitbox.style.right = px(-5);
+        resizeRightHitbox.style.top = px(this.stTextSize - 2);
+        resizeRightHitbox.style.bottom = px(this.stTextSize - 1);
+        resizeRightHitbox.style.width = px(8);
+        //resizeRightHitbox.style.cursor = "ew-resize";
+
+        resizeRight.appendChild(resizeRightHitbox);
+
+        // some functions
+
+        const toggleResizeButtons = (state) => {
+            if (state) {
+                resizeRightHitbox.display = "none";
+            }
+        }
+
+        // mouse events
+
+        // bottom right
+        resizeBottomRight.addEventListener("mouseenter", () => {
+            if (!resizeTarget) {
+                resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
+                document.body.style.cursor = (this.size.x === 32 && this.size.y === 32) ? "se-resize" : "nwse-resize";
+            }
+        })
+        resizeBottomRight.addEventListener("mouseleave", () => {
+            if (!resizeTarget) {
+                resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGrip);
+                document.body.style.cursor = "auto";
+            }
+        })
+        resizeBottomRight.addEventListener("mousedown", (e) => {
+            if (e.button === 0 && !resizeTarget) {
+                //resizeBottomRight.setAttribute("active", "1");
+                resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGripActive);
+                this.MakeActive();
+                resizeTarget = this;
+                resizeFlag = 0;
+                mouseStartPosX = e.clientX;
+                mouseStartPosY = e.clientY;
+                frameStartPosX = this.position.x;
+                frameStartPosY = this.position.y;
+                frameStartSizeX = this.size.x;
+                frameStartSizeY = this.size.y;
+            };
         });
 
-        titleBar.addEventListener("dblclick", (e) => {
-            if (e.button === 0) {
-                this.ToggleCollapse();
+        // bottom left
+        resizeBottomLeft.addEventListener("mouseenter", () => {
+            if (!resizeTarget) {
+                resizeTriangleLeftFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
+                document.body.style.cursor = (this.size.x === 32 && this.size.y === 32) ? "sw-resize" : "nesw-resize";
             }
+        })
+        resizeBottomLeft.addEventListener("mouseleave", () => {
+            if (!resizeTarget) {
+                resizeTriangleLeftFrame.style.fill = "#0000";
+                document.body.style.cursor = "auto";
+            }
+        })
+        resizeBottomLeft.addEventListener("mousedown", (e) => {
+            if (e.button === 0 && !resizeTarget) {
+                //resizeBottomLeft.setAttribute("active", "1");
+                resizeTriangleLeftFrame.style.fill = rgbaString(this.stColor.ResizeGripActive);
+                this.MakeActive();
+                resizeTarget = this;
+                resizeFlag = 1;
+                mouseStartPosX = e.clientX;
+                mouseStartPosY = e.clientY;
+                frameStartPosX = this.position.x;
+                frameStartPosY = this.position.y;
+                frameStartSizeX = this.size.x;
+                frameStartSizeY = this.size.y;
+            };
         });
-        
-        base.appendChild(titleBar);
-        base.appendChild(innerFrame);
+
+        // top
+        resizeTopHitbox.addEventListener("mouseenter", () => {
+            if (!resizeTarget) {
+                resizeTop.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
+                resizeTop.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+                document.body.style.cursor = (this.size.y === 32) ? "n-resize" : "ns-resize";
+            }
+        })
+        resizeTopHitbox.addEventListener("mouseleave", () => {
+            if (!resizeTarget) {
+                resizeTop.style.backgroundColor = "#0000";
+                resizeTop.style.borderColor = "#0000";
+                document.body.style.cursor = "auto";
+            }
+        })
+        resizeTopHitbox.addEventListener("mousedown", (e) => {
+            if (e.button === 0 && !resizeTarget) {
+                resizeTop.style.backgroundColor = rgbaString(this.stColor.SeparatorActive);
+                resizeTop.style.borderColor = rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5);
+                this.MakeActive();
+                resizeTarget = this;
+                resizeFlag = 2;
+                mouseStartPosX = e.clientX;
+                mouseStartPosY = e.clientY;
+                frameStartPosX = this.position.x;
+                frameStartPosY = this.position.y;
+                frameStartSizeX = this.size.x;
+                frameStartSizeY = this.size.y;
+            }
+        })
+
+        // bottom
+        resizeBottomHitbox.addEventListener("mouseenter", () => {
+            if (!resizeTarget) {
+                resizeBottom.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
+                resizeBottom.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+                document.body.style.cursor = (this.size.y === 32) ? "s-resize" : "ns-resize";
+            }
+        })
+        resizeBottomHitbox.addEventListener("mouseleave", () => {
+            if (!resizeTarget) {
+                resizeBottom.style.backgroundColor = "#0000";
+                resizeBottom.style.borderColor = "#0000";
+                document.body.style.cursor = "auto";
+            }
+        })
+        resizeBottomHitbox.addEventListener("mousedown", (e) => {
+            if (e.button === 0 && !resizeTarget) {
+                resizeBottom.style.backgroundColor = rgbaString(this.stColor.SeparatorActive);
+                resizeBottom.style.borderColor = rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5);
+                this.MakeActive();
+                resizeTarget = this;
+                resizeFlag = 3;
+                mouseStartPosX = e.clientX;
+                mouseStartPosY = e.clientY;
+                frameStartPosX = this.position.x;
+                frameStartPosY = this.position.y;
+                frameStartSizeX = this.size.x;
+                frameStartSizeY = this.size.y;
+            }
+        })
+
+        // left
+        resizeLeftHitbox.addEventListener("mouseenter", () => {
+            if (!resizeTarget) {
+                resizeLeft.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
+                resizeLeft.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+                document.body.style.cursor = (this.size.x === 32) ? "w-resize" : "ew-resize";
+            }
+        })
+        resizeLeftHitbox.addEventListener("mouseleave", () => {
+            if (!resizeTarget) {
+                resizeLeft.style.backgroundColor = "#0000";
+                resizeLeft.style.borderColor = "#0000";
+                document.body.style.cursor = "auto";
+            }
+        })
+        resizeLeftHitbox.addEventListener("mousedown", (e) => {
+            if (e.button === 0 && !resizeTarget) {
+                resizeLeft.style.backgroundColor = rgbaString(this.stColor.SeparatorActive);
+                resizeLeft.style.borderColor = rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5);
+                this.MakeActive();
+                resizeTarget = this;
+                resizeFlag = 4;
+                mouseStartPosX = e.clientX;
+                mouseStartPosY = e.clientY;
+                frameStartPosX = this.position.x;
+                frameStartPosY = this.position.y;
+                frameStartSizeX = this.size.x;
+                frameStartSizeY = this.size.y;
+            }
+        })
+
+        // right
+        resizeRightHitbox.addEventListener("mouseenter", () => {
+            if (!resizeTarget) {
+                resizeRight.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
+                resizeRight.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+                document.body.style.cursor = (this.size.x === 32) ? "e-resize" : "ew-resize";
+            }
+        })
+        resizeRightHitbox.addEventListener("mouseleave", () => {
+            if (!resizeTarget) {
+                resizeRight.style.backgroundColor = "#0000";
+                resizeRight.style.borderColor = "#0000";
+                document.body.style.cursor = "auto";
+            }
+        })
+        resizeRightHitbox.addEventListener("mousedown", (e) => {
+            if (e.button === 0 && !resizeTarget) {
+                resizeRight.style.backgroundColor = rgbaString(this.stColor.SeparatorActive);
+                resizeRight.style.borderColor = rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5);
+                this.MakeActive();
+                resizeTarget = this;
+                resizeFlag = 5;
+                mouseStartPosX = e.clientX;
+                mouseStartPosY = e.clientY;
+                frameStartPosX = this.position.x;
+                frameStartPosY = this.position.y;
+                frameStartSizeX = this.size.x;
+                frameStartSizeY = this.size.y;
+            }
+        })
+
+        // mouse exit
+        DebugGuiFrame.addEventListener("mouseup", (e) => {
+            /*resizeBottomRight.removeAttribute("active");
+            resizeBottomLeft.removeAttribute("active");*/
+            document.body.style.cursor = "auto";
+
+            if (e.target === resizeBottomRight) {
+                resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
+            } else {
+                resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGrip);
+            }
+
+            if (e.target === resizeBottomLeft) {
+                resizeTriangleLeftFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
+            } else {
+                resizeTriangleLeftFrame.style.fill = "#0000";
+            }
+
+            if (e.target === resizeTopHitbox) {
+                resizeTop.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
+                resizeTop.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+            } else {
+                resizeTop.style.backgroundColor = "#0000";
+                resizeTop.style.borderColor = "#0000";
+            }
+
+            if (e.target === resizeBottomHitbox) {
+                resizeBottom.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
+                resizeBottom.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+            } else {
+                resizeBottom.style.backgroundColor = "#0000";
+                resizeBottom.style.borderColor = "#0000";
+            }
+
+            if (e.target === resizeLeftHitbox) {
+                resizeLeft.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
+                resizeLeft.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+            } else {
+                resizeLeft.style.backgroundColor = "#0000";
+                resizeLeft.style.borderColor = "#0000";
+            }
+
+            if (e.target === resizeRightHitbox) {
+                resizeRight.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
+                resizeRight.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+            } else {
+                resizeRight.style.backgroundColor = "#0000";
+                resizeRight.style.borderColor = "#0000";
+            }
+        })
+
+        // #endregion
+
+        base.appendChild(resizeBottomLeft);
+        base.appendChild(resizeBottomRight);
+        base.appendChild(resizeTop);
+        base.appendChild(resizeBottom);
+        base.appendChild(resizeLeft);
+        base.appendChild(resizeRight);
+
+        content.appendChild(titleBar);
+        content.appendChild(innerFrame);
+        base.appendChild(borderFrame);
+        base.appendChild(content);
         DebugGuiFrame.appendChild(base);
 
         base.style.zIndex = windowCount;
         
         this.gui = base;
         this.gui_titlebar = titleBar;
+        this.gui_resize_up = resizeTopHitbox;
+        this.gui_resize_down = resizeBottomHitbox;
+        this.gui_resize_left = resizeLeftHitbox;
+        this.gui_resize_right = resizeRightHitbox;
+        this.gui_resize_down_left = resizeBottomLeft;
+        this.gui_resize_down_right = resizeBottomRight;
         this.active = true;
 
         windowObjects.forEach((w) => {
