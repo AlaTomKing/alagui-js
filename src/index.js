@@ -18,6 +18,7 @@ export const DebugRgba = class {
         this.r = r, this.g = g, this.b = b, this.a = a;
     }
 }
+const DebugRgbaVec4 = (x, y, z, w) => new DebugRgba(Math.floor(x * 255), Math.floor(y * 255), Math.floor(z * 255), Math.floor(w * 255))
 
 const rgbaString = (rgba) => `rgba(${rgba.r},${rgba.g},${rgba.b},${rgba.a/255})`;
 const rgbString = (rgb,a) => `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
@@ -217,6 +218,9 @@ const configPreset = {
             NavWindowingHighlight: new DebugRgba(255, 255, 255, 179),
             NavWindowingDimBg: new DebugRgba(204, 204, 204, 51),
             ModalWindowDimB: new DebugRgba(51, 51, 51, 89),
+        },
+        custom: { // shoutout codz01: https://github.com/ocornut/imgui/issues/707#issuecomment-252413954
+            
         }
     },
 
@@ -270,6 +274,55 @@ const defaultConfig = {
     color: configPreset.colors.dark,
     size: configPreset.size,
     textSize: configPreset.textSize
+}
+
+{
+    defaultConfig.color.Text = DebugRgbaVec4(0.90, 0.90, 0.90, 0.90);
+    defaultConfig.color.TextDisabled = DebugRgbaVec4(0.60, 0.60, 0.60, 1.00);
+    defaultConfig.color.WindowBg = DebugRgbaVec4(0.09, 0.09, 0.15, 1.00);
+    defaultConfig.color.ChildWindowBg = DebugRgbaVec4(0.00, 0.00, 0.00, 0.00);
+    defaultConfig.color.PopupBg = DebugRgbaVec4(0.05, 0.05, 0.10, 0.85);
+    defaultConfig.color.Border = DebugRgbaVec4(0.70, 0.70, 0.70, 0.65);
+    defaultConfig.color.BorderShadow = DebugRgbaVec4(0.00, 0.00, 0.00, 0.00);
+    defaultConfig.color.FrameBg = DebugRgbaVec4(0.00, 0.00, 0.01, 1.00);
+    defaultConfig.color.FrameBgHovered = DebugRgbaVec4(0.90, 0.80, 0.80, 0.40);
+    defaultConfig.color.FrameBgActive = DebugRgbaVec4(0.90, 0.65, 0.65, 0.45);
+    defaultConfig.color.TitleBg = DebugRgbaVec4(0.00, 0.00, 0.00, 0.83);
+    defaultConfig.color.TitleBgCollapsed = DebugRgbaVec4(0.40, 0.40, 0.80, 0.20);
+    defaultConfig.color.TitleBgActive = DebugRgbaVec4(0.00, 0.00, 0.00, 0.87);
+    defaultConfig.color.MenuBarBg = DebugRgbaVec4(0.01, 0.01, 0.02, 0.80);
+    defaultConfig.color.ScrollbarBg = DebugRgbaVec4(0.20, 0.25, 0.30, 0.60);
+    defaultConfig.color.ScrollbarGrab = DebugRgbaVec4(0.55, 0.53, 0.55, 0.51);
+    defaultConfig.color.ScrollbarGrabHovered = DebugRgbaVec4(0.56, 0.56, 0.56, 1.00);
+    defaultConfig.color.ScrollbarGrabActive = DebugRgbaVec4(0.56, 0.56, 0.56, 0.91);
+    defaultConfig.color.ComboBg = DebugRgbaVec4(0.1, 0.1, 0.1, 0.99);
+    defaultConfig.color.CheckMark = DebugRgbaVec4(0.90, 0.90, 0.90, 0.83);
+    defaultConfig.color.SliderGrab = DebugRgbaVec4(0.70, 0.70, 0.70, 0.62);
+    defaultConfig.color.SliderGrabActive = DebugRgbaVec4(0.30, 0.30, 0.30, 0.84);
+    defaultConfig.color.Button = DebugRgbaVec4(0.48, 0.72, 0.89, 0.49);
+    defaultConfig.color.ButtonHovered = DebugRgbaVec4(0.50, 0.69, 0.99, 0.68);
+    defaultConfig.color.ButtonActive = DebugRgbaVec4(0.80, 0.50, 0.50, 1.00);
+    defaultConfig.color.Header = DebugRgbaVec4(0.30, 0.69, 1.00, 0.53);
+    defaultConfig.color.HeaderHovered = DebugRgbaVec4(0.44, 0.61, 0.86, 1.00);
+    defaultConfig.color.HeaderActive = DebugRgbaVec4(0.38, 0.62, 0.83, 1.00);
+    defaultConfig.color.Column = DebugRgbaVec4(0.50, 0.50, 0.50, 1.00);
+    defaultConfig.color.ColumnHovered = DebugRgbaVec4(0.70, 0.60, 0.60, 1.00);
+    defaultConfig.color.ColumnActive = DebugRgbaVec4(0.90, 0.70, 0.70, 1.00);
+    defaultConfig.color.ResizeGrip = DebugRgbaVec4(1.00, 1.00, 1.00, 0.85);
+    defaultConfig.color.ResizeGripHovered = DebugRgbaVec4(1.00, 1.00, 1.00, 0.60);
+    defaultConfig.color.ResizeGripActive = DebugRgbaVec4(1.00, 1.00, 1.00, 0.90);
+    defaultConfig.color.CloseButton = DebugRgbaVec4(0.50, 0.50, 0.90, 0.50);
+    defaultConfig.color.CloseButtonHovered = DebugRgbaVec4(0.70, 0.70, 0.90, 0.60);
+    defaultConfig.color.CloseButtonActive = DebugRgbaVec4(0.70, 0.70, 0.70, 1.00);
+    defaultConfig.color.PlotLines = DebugRgbaVec4(1.00, 1.00, 1.00, 1.00);
+    defaultConfig.color.PlotLinesHovered = DebugRgbaVec4(0.90, 0.70, 0.00, 1.00);
+    defaultConfig.color.PlotHistogram = DebugRgbaVec4(0.90, 0.70, 0.00, 1.00);
+    defaultConfig.color.PlotHistogramHovered = DebugRgbaVec4(1.00, 0.60, 0.00, 1.00);
+    defaultConfig.color.TextSelectedBg = DebugRgbaVec4(0.00, 0.00, 1.00, 0.35);
+    defaultConfig.color.ModalWindowDarkening = DebugRgbaVec4(0.20, 0.20, 0.20, 0.35)
+defaultConfig.size.WindowRounding = 5.3;
+defaultConfig.size.FrameRounding = 2.3;
+defaultConfig.size.ScrollbarRounding = 0;
 }
 
 const windowOptions = {
@@ -460,15 +513,16 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
     }
 
     ToggleCollapse() {
-        console.log(this.collapse)
         this.collapse = !this.collapse;
 
         if (this.collapse) {
             this.gui_titlebar.style.backgroundColor = rgbaString(this.stColor.TitleBgCollapsed);
             this.gui.style.height = this.gui_titlebar.style.height;
+            this.gui_resize_down_right.style.display = "none";
         } else {
             this.gui_titlebar.style.backgroundColor = rgbaString(this.stColor.TitleBgActive);
             this.gui.style.height = px(this.size.y);
+            this.gui_resize_down_right.style.display = "block";
         }
     }
 
@@ -541,6 +595,7 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
         resizeTriangleRightFrame.style.top = px(-2 - this.stSize.WindowBorderSize);
         resizeTriangleRightFrame.style.left = px(-2 - this.stSize.WindowBorderSize);
         resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGrip);
+        resizeTriangleRightFrame.style.borderBottomRightRadius = px(this.stSize.WindowRounding - this.stSize.WindowBorderSize);
 
         const resizeTriangleRight = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         resizeTriangleRight.setAttribute("viewBox", "0 0 1 1");
@@ -565,6 +620,7 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
         resizeTriangleLeftFrame.style.top = px(-2 - this.stSize.WindowBorderSize);
         resizeTriangleLeftFrame.style.right = px(-2 - this.stSize.WindowBorderSize);
         resizeTriangleLeftFrame.style.fill = "#0000";
+        resizeTriangleLeftFrame.style.borderBottomLeftRadius = px(this.stSize.WindowRounding - this.stSize.WindowBorderSize);
 
         const resizeTriangleLeft = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         resizeTriangleLeft.setAttribute("viewBox", "0 0 1 1");
@@ -664,7 +720,7 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
 
         // bottom right
         resizeBottomRight.addEventListener("mouseenter", () => {
-            if (!resizeTarget) {
+            if (!resizeTarget && !this.collapse) {
                 resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
                 document.body.style.cursor = (this.size.x === 32 && this.size.y === 32) ? "se-resize" : "nwse-resize";
             }
@@ -693,7 +749,7 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
 
         // bottom left
         resizeBottomLeft.addEventListener("mouseenter", () => {
-            if (!resizeTarget) {
+            if (!resizeTarget && !this.collapse) {
                 resizeTriangleLeftFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
                 document.body.style.cursor = (this.size.x === 32 && this.size.y === 32) ? "sw-resize" : "nesw-resize";
             }
@@ -722,7 +778,7 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
 
         // top
         resizeTopHitbox.addEventListener("mouseenter", () => {
-            if (!resizeTarget) {
+            if (!resizeTarget && !this.collapse) {
                 resizeTop.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
                 resizeTop.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
                 document.body.style.cursor = (this.size.y === 32) ? "n-resize" : "ns-resize";
@@ -753,7 +809,7 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
 
         // bottom
         resizeBottomHitbox.addEventListener("mouseenter", () => {
-            if (!resizeTarget) {
+            if (!resizeTarget && !this.collapse) {
                 resizeBottom.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
                 resizeBottom.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
                 document.body.style.cursor = (this.size.y === 32) ? "s-resize" : "ns-resize";
@@ -784,7 +840,7 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
 
         // left
         resizeLeftHitbox.addEventListener("mouseenter", () => {
-            if (!resizeTarget) {
+            if (!resizeTarget && !this.collapse) {
                 resizeLeft.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
                 resizeLeft.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
                 document.body.style.cursor = (this.size.x === 32) ? "w-resize" : "ew-resize";
@@ -815,7 +871,7 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
 
         // right
         resizeRightHitbox.addEventListener("mouseenter", () => {
-            if (!resizeTarget) {
+            if (!resizeTarget && !this.collapse) {
                 resizeRight.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
                 resizeRight.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
                 document.body.style.cursor = (this.size.x === 32) ? "e-resize" : "ew-resize";
@@ -848,47 +904,53 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
         DebugGuiFrame.addEventListener("mouseup", (e) => {
             /*resizeBottomRight.removeAttribute("active");
             resizeBottomLeft.removeAttribute("active");*/
-            document.body.style.cursor = "auto";
+            //document.body.style.cursor = "auto";
 
-            if (e.target === resizeBottomRight) {
+            if (e.target === resizeBottomRight && !this.collapse) {
                 resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
+                document.body.style.cursor = (this.size.x === 32 && this.size.y === 32) ? "se-resize" : "nwse-resize";
             } else {
                 resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGrip);
             }
 
-            if (e.target === resizeBottomLeft) {
+            if (e.target === resizeBottomLeft && !this.collapse) {
                 resizeTriangleLeftFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
+                document.body.style.cursor = (this.size.x === 32 && this.size.y === 32) ? "sw-resize" : "nesw-resize";
             } else {
                 resizeTriangleLeftFrame.style.fill = "#0000";
             }
 
-            if (e.target === resizeTopHitbox) {
+            if (e.target === resizeTopHitbox && !this.collapse) {
                 resizeTop.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
                 resizeTop.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+                document.body.style.cursor = (this.size.y === 32) ? "n-resize" : "ns-resize";
             } else {
                 resizeTop.style.backgroundColor = "#0000";
                 resizeTop.style.borderColor = "#0000";
             }
 
-            if (e.target === resizeBottomHitbox) {
+            if (e.target === resizeBottomHitbox && !this.collapse) {
                 resizeBottom.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
                 resizeBottom.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+                document.body.style.cursor = (this.size.y === 32) ? "s-resize" : "ns-resize";
             } else {
                 resizeBottom.style.backgroundColor = "#0000";
                 resizeBottom.style.borderColor = "#0000";
             }
 
-            if (e.target === resizeLeftHitbox) {
+            if (e.target === resizeLeftHitbox && !this.collapse) {
                 resizeLeft.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
                 resizeLeft.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+                document.body.style.cursor = (this.size.x === 32) ? "w-resize" : "ew-resize";
             } else {
                 resizeLeft.style.backgroundColor = "#0000";
                 resizeLeft.style.borderColor = "#0000";
             }
 
-            if (e.target === resizeRightHitbox) {
+            if (e.target === resizeRightHitbox && !this.collapse) {
                 resizeRight.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
                 resizeRight.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
+                document.body.style.cursor = (this.size.x === 32) ? "e-resize" : "ew-resize";
             } else {
                 resizeRight.style.backgroundColor = "#0000";
                 resizeRight.style.borderColor = "#0000";
