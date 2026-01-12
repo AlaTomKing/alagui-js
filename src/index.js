@@ -20,28 +20,155 @@ export const DebugRgba = class {
 }
 const DebugRgbaVec4 = (x, y, z, w) => new DebugRgba(Math.floor(x * 255), Math.floor(y * 255), Math.floor(z * 255), Math.floor(w * 255))
 
-const rgbaString = (rgba) => `rgba(${rgba.r},${rgba.g},${rgba.b},${rgba.a/255})`;
-const rgbString = (rgb,a) => `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
+const rgbaString = (rgba) => `rgba(${rgba.r},${rgba.g},${rgba.b},${rgba.a / 255})`;
+const rgbString = (rgb, a) => `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
 const px = (x) => x + "px";
-const configStyle = (style, obj) => {
+const rate = (x) => (x * 100) + "%";
+const configStyle = (el, obj) => {
     for (const [name, val] of Object.entries(obj)) {
-        style[name] = val;
+        el[name] = val;
+    }
+}
+
+class textLabel {
+    constructor(value, parent) {
+        this.element = document.createElement("div");
+        this.textElement = document.createElement("span");
+
+        this.element.className = "debugGuiWindow textLabel";
+        this.textElement.innerText = value;
+
+        this.textElement.style.whiteSpace = "nowrap";
+        this.textElement.style.position = "absolute";
+        this.textElement.style.textOverflow = "ellipsis";
+
+        this.element.appendChild(this.textElement);
+        if (parent) parent.appendChild(this.element);
+    }
+
+    setHeight(h) {
+        this.textElement.style.height = px(h);
+        this.textElement.style.lineHeight = px(h);
+    }
+
+    alignText(x, y) {
+        this.textElement.style.left = rate(x);
+        this.textElement.style.top = rate(y);
+        this.textElement.style.transform = `translate(-${rate(x)},-${rate(y)})`;
+    }
+}
+
+// create element that assigns to its parent
+const createElement = (type, parent) => {
+    const newElement = document.createElement(type);
+    if (parent) parent.appendChild(newElement);
+    return newElement;
+}
+
+// same thing but has a namespace uri thingy for svgs and stuff
+const createElementNS = (uri, type, parent) => {
+    const newElement = document.createElementNS(uri, type);
+    if (parent) parent.appendChild(newElement);
+    return newElement;
+}
+
+// for button maker; checks and configures style
+const checkStyle = (style) => {
+    if (style) {
+        style.forEach((obj) => {
+            if (obj.condition === undefined || obj.condition())
+                configStyle(obj.element.style, obj.style());
+        });
+    }
+}
+
+// make buttons
+const buttonMaker = (el, styleTable, callback, holdActive = false, deactivateOnMove = false) => {
+    // styletable contains
+    // - idle: default look for element
+    // - hover: hovered version of element
+    // - active: element when pressing down or something
+    // and this should work for multiple elements
+
+    // callback table contains: mousedown, mouseup and click
+
+    // holdActive means the button looks active as long as the mouse is down 
+    // even if it leaves the button
+
+    // deactivateOnMove makes the button look idle if the button is pressed but the cursor moves
+    // this is only for buttons in title bars lol
+
+    checkStyle(styleTable.idle);
+
+    let hovered = false, pressed = false, pressGlobal = false, moved = false;
+    let startMouseX, startMouseY // for deactivateOnMove so it does its thing when cursor moves at a certain distance
+    el.addEventListener("mouseenter", (e) => {
+        hovered = true;
+        if ((!pressGlobal || pressed) && !moved) if (pressed) checkStyle(styleTable.active); else checkStyle(styleTable.hover);
+    });
+    el.addEventListener("mouseleave", (e) => {
+        hovered = false;
+        if (!(holdActive && pressed)) checkStyle(styleTable.idle);
+    });
+    el.addEventListener("click", (e) => {
+        if (e.button === 0 && callback?.click && !moved)
+            callback.click(e);
+        moved = false;
+    });
+    el.addEventListener("mousedown", (e) => {
+        if (e.button === 0) {
+            pressed = true;
+            startMouseX = e.clientX; startMouseY = e.clientY;
+            checkStyle(styleTable.active)
+            if (callback?.mousedown) callback.mousedown(e);
+        }
+    });
+    el.addEventListener("mousemove", (e) => {
+        const deltaX = e.clientX - startMouseX;
+        const deltaY = e.clientY - startMouseY;
+
+        if (pressed && deactivateOnMove && (!(deltaX > -6 && deltaX < 6) || !(deltaY > -6 && deltaY < 6))) {
+            moved = true;
+            checkStyle(styleTable.idle);
+        }
+    })
+    window.addEventListener("mousedown", (e) => {
+        if (e.button === 0) {
+            pressGlobal = true;
+        }
+    });
+    window.addEventListener("mouseup", (e) => {
+        if (e.button === 0) {
+            pressGlobal = false;
+            if (pressed) {
+                pressed = false;
+                if (hovered) {
+                    checkStyle(styleTable.hover);
+                    if (callback?.mouseup && !moved) callback.mouseup(e);
+                } else checkStyle(styleTable.idle);
+            }
+        }
+    });
+
+    return {
+        element: el,
+        updateIdle: () => {
+            checkStyle(styleTable.idle);
+        }
     }
 }
 
 let clickCount = 0, clickTarget, singleClickTimer;
-const doubleClickEvent = (e,callback) => {
-    e.addEventListener("click", (e) => {
-        console.log("doubleClick")
+const doubleClickEvent = (el, callback) => {
+    el.addEventListener("mousedown", (e) => {
         if (e.button === 0) {
-            if (clickTarget !== e.target) { clearTimeout(singleClickTimer); clickCount = 0};
+            if (clickTarget !== e.target) { clearTimeout(singleClickTimer); clickCount = 0 };
             clickTarget = e.target;
 
-            clickCount++;
+            if (e.target === el) clickCount++;
             if (clickCount === 1) {
                 singleClickTimer = setTimeout(() => {
                     clickCount = 0;
-                    console.log(clickCount)
                 }, 400);
             } else if (clickCount === 2) {
                 clearTimeout(singleClickTimer);
@@ -219,16 +346,12 @@ const configPreset = {
             NavWindowingDimBg: new DebugRgba(204, 204, 204, 51),
             ModalWindowDimB: new DebugRgba(51, 51, 51, 89),
         },
-        custom: { // shoutout codz01: https://github.com/ocornut/imgui/issues/707#issuecomment-252413954
-            
-        }
     },
 
     size: {
         // Main
         WindowPadding: new DebugVec2(8, 8),
         FramePadding: new DebugVec2(4, 3),
-        CellPadding: new DebugVec2(4, 2),
         ItemSpacing: new DebugVec2(8, 4),
         ItemInnerSpacing: new DebugVec2(4, 4),
         TouchExtraPadding: new DebugVec2(0, 0),
@@ -241,7 +364,6 @@ const configPreset = {
         ChildBorderSize: 1,
         PopupBorderSize: 1,
         FrameBorderSize: 0,
-        TabBorderSize: 0,
 
         // Rounding
         WindowRounding: 0,
@@ -250,11 +372,31 @@ const configPreset = {
         PopupRounding: 0,
         ScrollbarRounding: 9,
         GrabRounding: 0,
-        TabRounding: 4,
+
+        // Tabs
+        TabBorderSize: 0,
+        TabBarBorderSize: 1,
+        TabBarOverlineSize: 1,
+        TabCloseButtonMinWidthSelected: -1,
+        TabCloseButtonMinWidthUnselected: 0,
+        TabRounding: 5,
+
+        // Tables
+        CellPadding: new DebugVec2(4, 2),
+        TableAngledHeadersAngle: 35,
+        TableAngledHeadersTextAlign: new DebugVec2(0.5, 0),
+
+        // Trees
+        TreeLinesFlags: "DrawLinesNone",
+        TreeLinesSize: 1,
+        TreeLinesRounding: 0,
+
+        // Windows
+        WindowTitleAlign: new DebugVec2(0, 0.5),
+        WindowBorderHoverPadding: 4,
+        WindowMenuButtonPosition: "Left",
 
         // Widgets
-        WindowTitleAlign: new DebugVec2(0, 0.5),
-        WindowMenuButtonPosition: "Left",
         ColorButtonPosition: "Right",
         ButtonTextAlign: new DebugVec2(0.5, 0.5),
         SelectableTextAlign: new DebugVec2(0, 0),
@@ -262,12 +404,14 @@ const configPreset = {
         SeparatorTextAlign: new DebugVec2(0, 0.5),
         SeparatorTextPadding: new DebugVec2(20, 3),
         LogSliderDeadzone: 4,
+        ImageBorderSize: 0,
 
         // Misc
+        DisplayWindowPadding: new DebugVec2(19, 19),
         DisplaySafeAreaPadding: new DebugVec2(3, 3),
     },
 
-    textSize: 23
+    textSize: 13
 }
 
 const defaultConfig = {
@@ -276,7 +420,7 @@ const defaultConfig = {
     textSize: configPreset.textSize
 }
 
-{
+/*{ // shoutout codz01: https://github.com/ocornut/imgui/issues/707#issuecomment-252413954
     defaultConfig.color.Text = DebugRgbaVec4(0.90, 0.90, 0.90, 0.90);
     defaultConfig.color.TextDisabled = DebugRgbaVec4(0.60, 0.60, 0.60, 1.00);
     defaultConfig.color.WindowBg = DebugRgbaVec4(0.09, 0.09, 0.15, 1.00);
@@ -323,7 +467,7 @@ const defaultConfig = {
 defaultConfig.size.WindowRounding = 5.3;
 defaultConfig.size.FrameRounding = 2.3;
 defaultConfig.size.ScrollbarRounding = 0;
-}
+}*/
 
 const windowOptions = {
     "no_titlebar": false,
@@ -346,18 +490,30 @@ const windowObjects = [];
 const DebugGuiFrame = document.createElement("div");
 DebugGuiFrame.id = "debugGuiFrame";
 
-let moveTarget = null;
+// holdMove: don't move until cursor moves at enough distance
+let moveTarget = null, holdMove = false;
 let resizeTarget = null, resizeFlag;
 let frameStartPosX, frameStartPosY;
 let mouseStartPosX, mouseStartPosY;
 let frameStartSizeX, frameStartSizeY;
 
+DebugGuiFrame.addEventListener("wheel", (e) => {
+    //e.preventDefault();
+})
+
+DebugGuiFrame.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+})
+
 DebugGuiFrame.addEventListener("mousemove", (e) => {
-    if (moveTarget 
+    const deltaX = e.clientX - mouseStartPosX;
+    const deltaY = e.clientY - mouseStartPosY;
+
+    if (moveTarget
         && e.clientX >= 0 && e.clientX < window.innerWidth &&
-            e.clientY >= 0 && e.clientY < window.innerHeight) {
-        const deltaX = e.clientX - mouseStartPosX;
-        const deltaY = e.clientY - mouseStartPosY;
+        e.clientY >= 0 && e.clientY < window.innerHeight &&
+        (holdMove && !(deltaX > -6 && deltaX < 6) || !(deltaY > -6 && deltaY < 6) || !holdMove)) {
+        holdMove = false;
 
         moveTarget.position.x = frameStartPosX + deltaX;
         moveTarget.position.y = frameStartPosY + deltaY;
@@ -366,8 +522,6 @@ DebugGuiFrame.addEventListener("mousemove", (e) => {
     } else if (resizeTarget
         && e.clientX >= 0 && e.clientX < window.innerWidth &&
         e.clientY >= 0 && e.clientY < window.innerHeight) {
-        const deltaX = e.clientX - mouseStartPosX;
-        const deltaY = e.clientY - mouseStartPosY;
 
         switch (resizeFlag) {
             case 0: // resize bottom right
@@ -414,9 +568,9 @@ DebugGuiFrame.addEventListener("mousedown", (e) => {
     }
 });
 
-DebugGuiFrame.addEventListener("mouseup", (e) => {
+window.addEventListener("mouseup", (e) => {
     if (e.button === 0) {
-        moveTarget = null; resizeTarget = null;
+        moveTarget = null; resizeTarget = null; holdMove = false;
     }
 });
 
@@ -448,8 +602,10 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
     active = false;
     collapse = false;
 
-    constructor(name) {
+    constructor(title = "") {
         super();
+
+        this.title = title;
     }
 
     SetPosition(x, y) {
@@ -499,7 +655,7 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
                 }
             })
 
-            this.gui.style.zIndex = windowCount;
+            this.gui.style.zIndex = windowCount - 1;
         }
     }
 
@@ -515,14 +671,31 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
     ToggleCollapse() {
         this.collapse = !this.collapse;
 
-        if (this.collapse) {
-            this.gui_titlebar.style.backgroundColor = rgbaString(this.stColor.TitleBgCollapsed);
-            this.gui.style.height = this.gui_titlebar.style.height;
-            this.gui_resize_down_right.style.display = "none";
-        } else {
-            this.gui_titlebar.style.backgroundColor = rgbaString(this.stColor.TitleBgActive);
-            this.gui.style.height = px(this.size.y);
-            this.gui_resize_down_right.style.display = "block";
+        this.gui_titlebar.style.backgroundColor = this.collapse ? rgbaString(this.stColor.TitleBgCollapsed) : rgbaString(this.stColor.TitleBgActive);
+        this.gui.style.height = this.collapse ? this.gui_titlebar.style.height : px(this.size.y);
+
+        this.gui_resizeBottomRightBtn.updateIdle();
+        this.gui_collapseTriangle.style.transform = this.collapse ? "translate(-50%,-50%) rotate(-90deg)" : "translate(-50%,-50%)";
+    }
+
+    // closes window but doesn't delete the object
+    Close() {
+        if (this.gui) {
+            let foundIndex, foundDisplayOrder;
+            windowObjects.forEach((w, idx) => {
+                if (w === this) {
+                    foundIndex = idx;
+                    foundDisplayOrder = w.gui.style.zIndex;
+                }
+                if (foundIndex && w.gui.style.zIndex > foundDisplayOrder) {
+                    w.gui.style.zIndex = w.gui.style.zIndex - 1;
+                }
+            })
+
+            windowObjects.splice(foundIndex, 1);
+            this.gui.remove();
+            this.gui = null;
+            windowCount--;
         }
     }
 
@@ -538,6 +711,7 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
             top: px(this.position.y),
             width: px(this.size.x),
             height: px(this.size.y),
+            fontSize: px(this.stTextSize),
         })
 
         const content = document.createElement("div");
@@ -559,412 +733,458 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
         const borderFrame = document.createElement("div");
         borderFrame.className = "debugGuiWindow borderFrame";
 
-        borderFrame.style.borderColor = rgbaString(this.stColor.Border),
-        borderFrame.style.borderWidth = px(this.stSize.WindowBorderSize),
-        borderFrame.style.borderRadius = px(this.stSize.WindowRounding),
+        borderFrame.style.borderColor = rgbaString(this.stColor.Border);
+        borderFrame.style.borderWidth = px(this.stSize.WindowBorderSize);
+        borderFrame.style.borderRadius = px(this.stSize.WindowRounding);
+
+        // collapse button
+        const collapseBtnEl = createElement("div", titleBar);
+        collapseBtnEl.className = "debugGuiWindow titleBar barButton";
+
+        const collapseTriangle = createElementNS('http://www.w3.org/2000/svg', 'svg', collapseBtnEl);
+        collapseTriangle.setAttribute("viewBox", "0 0 1 1");
+
+        collapseTriangle.style.position = "absolute";
+        collapseTriangle.style.width = "80%";
+        collapseTriangle.style.height = "80%";
+        collapseTriangle.style.top = "50%";
+        collapseTriangle.style.left = "50%";
+        collapseTriangle.style.transform = "translate(-50%, -50%)";
+
+        const collapseTrianglePath = createElementNS('http://www.w3.org/2000/svg', 'polygon', collapseTriangle);
+        collapseTrianglePath.setAttribute("points", "0.0670139,0.125 0.933014,0.125 0.5,0.875");
+
+        buttonMaker(collapseBtnEl, {
+            idle: [{
+                element: collapseBtnEl,
+                style: () => ({
+                    width: px(this.stTextSize),
+                    height: px(this.stTextSize),
+                    left: px(this.stSize.FramePadding.x + this.stSize.WindowBorderSize),
+                    backgroundColor: "#0000",
+                    fill: rgbaString(this.stColor.Text),
+                })
+            }],
+            hover: [{
+                element: collapseBtnEl,
+                style: () => ({ backgroundColor: rgbaString(this.stColor.ButtonHovered) })
+            }],
+            active: [{
+                element: collapseBtnEl,
+                style: () => ({ backgroundColor: rgbaString(this.stColor.ButtonActive) })
+            }]
+        }, {
+            click: () => { this.ToggleCollapse(); }
+        }, false, true)
+
+        // close button
+        const closeBtnEl = createElement("div", titleBar);
+        closeBtnEl.className = "debugGuiWindow titleBar barButton";
+
+        const closeCross = createElementNS('http://www.w3.org/2000/svg', 'svg', closeBtnEl);
+        closeCross.setAttribute("viewBox", "0 0 1 1");
+        closeCross.setAttribute("stroke-width", "1px");
+        closeCross.setAttribute("preserveAspectRatio", "none");
+
+        const closeCrossLine0 = createElementNS('http://www.w3.org/2000/svg', 'line', closeCross);
+        closeCrossLine0.setAttribute("x1", 0.5 - (0.5 * 0.7071));
+        closeCrossLine0.setAttribute("y1", 0.5 - (0.5 * 0.7071));
+        closeCrossLine0.setAttribute("x2", 0.5 + (0.5 * 0.7071));
+        closeCrossLine0.setAttribute("y2", 0.5 + (0.5 * 0.7071));
+        closeCrossLine0.setAttribute("vector-effect", "non-scaling-stroke");
+
+        const closeCrossLine1 = createElementNS('http://www.w3.org/2000/svg', 'line', closeCross);
+        closeCrossLine1.setAttribute("x1", 0.5 - (0.5 * 0.7071));
+        closeCrossLine1.setAttribute("y1", 0.5 + (0.5 * 0.7071));
+        closeCrossLine1.setAttribute("x2", 0.5 + (0.5 * 0.7071));
+        closeCrossLine1.setAttribute("y2", 0.5 - (0.5 * 0.7071));
+        closeCrossLine1.setAttribute("vector-effect", "non-scaling-stroke");
+
+        buttonMaker(closeBtnEl, {
+            idle: [{
+                element: closeBtnEl,
+                style: () => ({
+                    width: px(this.stTextSize),
+                    height: px(this.stTextSize),
+                    right: px(this.stSize.FramePadding.x + this.stSize.WindowBorderSize),
+                    stroke: rgbaString(this.stColor.Text),
+                    backgroundColor: "#0000",
+                })
+            }],
+            hover: [{
+                element: closeBtnEl,
+                style: () => ({ backgroundColor: rgbaString(this.stColor.ButtonHovered) })
+            }],
+            active: [{
+                element: closeBtnEl,
+                style: () => ({ backgroundColor: rgbaString(this.stColor.ButtonActive) })
+            }]
+        }, {
+            click: () => { this.Close(); }
+        }, false)
+
+        // title text
+        const titleBarLabel = new textLabel(this.title, titleBar);
+        titleBarLabel.element.style.left = px(this.stTextSize + this.stSize.FramePadding.y + this.stSize.WindowBorderSize + this.stSize.ItemInnerSpacing.x * 2);
+        titleBarLabel.element.style.right = px(this.stTextSize + this.stSize.FramePadding.y + this.stSize.WindowBorderSize + this.stSize.ItemInnerSpacing.x * 2);
+        titleBarLabel.alignText(0, 0.5);
+        titleBarLabel.setHeight(this.stTextSize);
 
         // double click to toggle collapse
-        console.log(this.ToggleCollapse)
         doubleClickEvent(titleBar, () => { this.ToggleCollapse() });
 
-        base.addEventListener("mousedown", (e) => {
-            if (e.button === 0 && !moveTarget && e.target !== resizeBottomRight && e.target !== resizeBottomLeft 
-                && e.target !== resizeTopHitbox && e.target !== resizeBottomHitbox && e.target !== resizeLeftHitbox && e.target !== resizeRightHitbox) {
-                console.log("mouseDown")
-                this.MakeActive();
-                moveTarget = this;
-                mouseStartPosX = e.clientX;
-                mouseStartPosY = e.clientY;
-                frameStartPosX = this.position.x;
-                frameStartPosY = this.position.y;
-            };
-        });
+        const startResizin = (e, flag) => {
+            this.MakeActive();
+            resizeTarget = this;
+            resizeFlag = flag;
+            mouseStartPosX = e.clientX;
+            mouseStartPosY = e.clientY;
+            frameStartPosX = this.position.x;
+            frameStartPosY = this.position.y;
+            frameStartSizeX = this.size.x;
+            frameStartSizeY = this.size.y;
+        }
+
+        const startMovin = (e, isHoldingBtn = false) => {
+            this.MakeActive();
+            moveTarget = this;
+            holdMove = isHoldingBtn;
+            mouseStartPosX = e.clientX;
+            mouseStartPosY = e.clientY;
+            frameStartPosX = this.position.x;
+            frameStartPosY = this.position.y;
+        }
 
         // #region resize thingys
 
         // bottom right
-        const resizeBottomRight = document.createElement("div");
+        const resizeBottomRight = createElement("div", base);
         resizeBottomRight.className = "debugGuiWindow resizeBtn";
-        resizeBottomRight.style.height = px(this.stTextSize + 4);
-        resizeBottomRight.style.right = px(-5);
-        resizeBottomRight.style.bottom = px(-5);
-        //resizeBottomRight.style.cursor = "nwse-resize";
 
-        const resizeTriangleRightFrame = document.createElement("div");
+        const resizeTriangleRightFrame = createElement("div", resizeBottomRight);
         resizeTriangleRightFrame.className = "debugGuiWindow resizeBtn triangle";
-        resizeTriangleRightFrame.style.top = px(-2 - this.stSize.WindowBorderSize);
-        resizeTriangleRightFrame.style.left = px(-2 - this.stSize.WindowBorderSize);
-        resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGrip);
-        resizeTriangleRightFrame.style.borderBottomRightRadius = px(this.stSize.WindowRounding - this.stSize.WindowBorderSize);
 
-        const resizeTriangleRight = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const resizeTriangleRight = createElementNS('http://www.w3.org/2000/svg', 'svg', resizeTriangleRightFrame);
         resizeTriangleRight.setAttribute("viewBox", "0 0 1 1");
-        
-        const rightTrianglePath = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+
+        const rightTrianglePath = createElementNS('http://www.w3.org/2000/svg', 'polygon', resizeTriangleRight);
         rightTrianglePath.setAttribute("points", "0,1 1,1 1,0");
 
-        resizeTriangleRight.appendChild(rightTrianglePath);
-        resizeTriangleRightFrame.appendChild(resizeTriangleRight);
-        resizeBottomRight.appendChild(resizeTriangleRightFrame);
+        const resizeBottomRightBtn = buttonMaker(resizeBottomRight, {
+            idle: [{
+                element: resizeBottomRight,
+                style: () => ({
+                    height: px(this.stTextSize + 4),
+                    right: px(-5),
+                    bottom: px(-5),
+                })
+            }, {
+                element: resizeTriangleRightFrame,
+                style: () => ({
+                    top: px(-2 - this.stSize.WindowBorderSize),
+                    left: px(-2 - this.stSize.WindowBorderSize),
+                    fill: !this.collapse ? rgbaString(this.stColor.ResizeGrip) : "#0000",
+                    borderBottomRightRadius: px(this.stSize.WindowRounding - this.stSize.WindowBorderSize),
+                })
+            }, {
+                element: document.body,
+                style: () => ({
+                    cursor: "auto",
+                })
+            }],
+            hover: [{
+                element: resizeTriangleRightFrame, condition: () => (!this.collapse),
+                style: () => ({
+                    fill: rgbaString(this.stColor.ResizeGripHovered),
+                })
+            }, {
+                element: document.body, condition: () => (!this.collapse),
+                style: () => ({
+                    cursor: (this.size.x === 32 && this.size.y === 32) ? "se-resize" : "nwse-resize",
+                })
+            }],
+            active: [{
+                element: resizeTriangleRightFrame, condition: () => (!this.collapse),
+                style: () => ({
+                    fill: rgbaString(this.stColor.ResizeGripActive),
+                })
+            }]
+        }, {
+            mousedown: (e) => {
+                if (this.collapse) startMovin(e); else startResizin(e, 0);
+            },
+        }, true);
 
         // bottom left
-        const resizeBottomLeft = document.createElement("div");
+        const resizeBottomLeft = createElement("div", base);
         resizeBottomLeft.className = "debugGuiWindow resizeBtn";
-        resizeBottomLeft.style.height = px(this.stTextSize + 4);
-        resizeBottomLeft.style.left = px(-5);
-        resizeBottomLeft.style.bottom = px(-5);
-        //resizeBottomLeft.style.cursor = "nesw-resize";
 
-        const resizeTriangleLeftFrame = document.createElement("div");
+        const resizeTriangleLeftFrame = createElement("div", resizeBottomLeft);
         resizeTriangleLeftFrame.className = "debugGuiWindow resizeBtn triangle";
-        resizeTriangleLeftFrame.style.top = px(-2 - this.stSize.WindowBorderSize);
-        resizeTriangleLeftFrame.style.right = px(-2 - this.stSize.WindowBorderSize);
-        resizeTriangleLeftFrame.style.fill = "#0000";
-        resizeTriangleLeftFrame.style.borderBottomLeftRadius = px(this.stSize.WindowRounding - this.stSize.WindowBorderSize);
 
-        const resizeTriangleLeft = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const resizeTriangleLeft = createElementNS('http://www.w3.org/2000/svg', 'svg', resizeTriangleLeftFrame);
         resizeTriangleLeft.setAttribute("viewBox", "0 0 1 1");
 
-        const leftTrianglePath = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        const leftTrianglePath = createElementNS('http://www.w3.org/2000/svg', 'polygon', resizeTriangleLeft);
         leftTrianglePath.setAttribute("points", "0,1 1,1 0,0");
 
-        resizeTriangleLeft.appendChild(leftTrianglePath);
-        resizeTriangleLeftFrame.appendChild(resizeTriangleLeft);
-        resizeBottomLeft.appendChild(resizeTriangleLeftFrame);
+        buttonMaker(resizeBottomLeft, {
+            idle: [{
+                element: resizeBottomLeft,
+                style: () => ({
+                    height: px(this.stTextSize + 4),
+                    left: px(-5),
+                    bottom: px(-5),
+                })
+            }, {
+                element: resizeTriangleLeftFrame,
+                style: () => ({
+                    top: px(-2 - this.stSize.WindowBorderSize),
+                    right: px(-2 - this.stSize.WindowBorderSize),
+                    fill: "#0000",
+                    borderBottomLeftRadius: px(this.stSize.WindowRounding - this.stSize.WindowBorderSize),
+                })
+            }, { element: document.body, style: () => ({ cursor: "auto", }) }],
+            hover: [{
+                element: resizeTriangleLeftFrame, condition: () => (!this.collapse),
+                style: () => ({
+                    fill: rgbaString(this.stColor.ResizeGripHovered),
+                })
+            }, { element: document.body, condition: () => (!this.collapse), style: () => ({ cursor: (this.size.x === 32 && this.size.y === 32) ? "sw-resize" : "nesw-resize", }) }],
+            active: [{ element: resizeTriangleLeftFrame, condition: () => (!this.collapse), style: () => ({ fill: rgbaString(this.stColor.ResizeGripActive), }) }]
+        }, {
+            mousedown: (e) => {
+                if (this.collapse) startMovin(e); else startResizin(e, 1);
+            },
+        }, true);
 
         // top
-        const resizeTop = document.createElement("div");
+        const resizeTop = createElement("div", base);
         resizeTop.className = "resizeLine";
-        resizeTop.style.left = px(0);
-        resizeTop.style.right = px(1);
-        resizeTop.style.top = px(-1);
-        resizeTop.style.height = px(1);
-        resizeTop.style.borderBlock = "solid 1px #0000"
 
-        const resizeTopHitbox = document.createElement("div");
+        const resizeTopHitbox = createElement("div", resizeTop);
         resizeTopHitbox.className = "resizeLineHitbox";
-        resizeTopHitbox.style.top = px(-5);
-        resizeTopHitbox.style.left = px(this.stTextSize - 1);
-        resizeTopHitbox.style.right = px(this.stTextSize - 2);
-        resizeTopHitbox.style.height = px(8);
-        //resizeTopHitbox.style.cursor = "ns-resize";
 
-        resizeTop.appendChild(resizeTopHitbox);
+        buttonMaker(resizeTopHitbox, {
+            idle: [{
+                element: resizeTop,
+                style: () => ({
+                    left: px(0),
+                    right: px(1),
+                    top: px(-1),
+                    height: px(1),
+                    borderBlock: "solid 1px #0000",
+                    backgroundColor: "#0000"
+                })
+            }, {
+                element: resizeTopHitbox,
+                style: () => ({
+                    top: px(-5),
+                    left: px(this.stTextSize - 1),
+                    right: px(this.stTextSize - 2),
+                    height: px(8)
+                })
+            }, { element: document.body, style: () => ({ cursor: "auto", }) }],
+            hover: [{
+                element: resizeTop, condition: () => (!this.collapse),
+                style: () => ({
+                    backgroundColor: rgbaString(this.stColor.SeparatorHovered),
+                    borderColor: rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5)
+                })
+            }, { element: document.body, condition: () => (!this.collapse), style: () => ({ cursor: (this.size.y === 32) ? "n-resize" : "ns-resize" }) }],
+            active: [{
+                element: resizeTop, condition: () => (!this.collapse),
+                style: () => ({
+                    backgroundColor: rgbaString(this.stColor.SeparatorActive),
+                    borderColor: rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5),
+                })
+            }]
+        }, {
+            mousedown: (e) => {
+                if (this.collapse) startMovin(e); else startResizin(e, 2);
+            }
+        }, true)
 
         // bottom
-        const resizeBottom = document.createElement("div");
+        const resizeBottom = createElement("div", base);
         resizeBottom.className = "resizeLine";
-        resizeBottom.style.left = px(0);
-        resizeBottom.style.right = px(1);
-        resizeBottom.style.bottom = px(-1);
-        resizeBottom.style.height = px(1);
-        resizeBottom.style.borderBlock = "solid 1px #0000"
 
-        const resizeBottomHitbox = document.createElement("div");
+        const resizeBottomHitbox = createElement("div", resizeBottom);
         resizeBottomHitbox.className = "resizeLineHitbox";
-        resizeBottomHitbox.style.bottom = px(-5);
-        resizeBottomHitbox.style.left = px(this.stTextSize - 1);
-        resizeBottomHitbox.style.right = px(this.stTextSize - 2);
-        resizeBottomHitbox.style.height = px(8);
-        //resizeBottomHitbox.style.cursor = "ns-resize";
 
-        resizeBottom.appendChild(resizeBottomHitbox);
+        buttonMaker(resizeBottomHitbox, {
+            idle: [{
+                element: resizeBottom,
+                style: () => ({
+                    left: px(0),
+                    right: px(1),
+                    bottom: px(-1),
+                    height: px(1),
+                    borderBlock: "solid 1px #0000",
+                    backgroundColor: "#0000"
+                })
+            }, {
+                element: resizeBottomHitbox,
+                style: () => ({
+                    bottom: px(-5),
+                    left: px(this.stTextSize - 1),
+                    right: px(this.stTextSize - 2),
+                    height: px(8)
+                })
+            }, { element: document.body, style: () => ({ cursor: "auto", }) }],
+            hover: [{
+                element: resizeBottom, condition: () => (!this.collapse),
+                style: () => ({
+                    backgroundColor: rgbaString(this.stColor.SeparatorHovered),
+                    borderColor: rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5)
+                })
+            }, { element: document.body, condition: () => (!this.collapse), style: () => ({ cursor: (this.size.y === 32) ? "s-resize" : "ns-resize" }) }],
+            active: [{
+                element: resizeBottom, condition: () => (!this.collapse),
+                style: () => ({
+                    backgroundColor: rgbaString(this.stColor.SeparatorActive),
+                    borderColor: rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5),
+                })
+            }]
+        }, {
+            mousedown: (e) => {
+                if (this.collapse) startMovin(e); else startResizin(e, 3);
+            }
+        }, true)
 
         // left
-        const resizeLeft = document.createElement("div");
+        const resizeLeft = createElement("div", base);
         resizeLeft.className = "resizeLine";
-        resizeLeft.style.left = px(-1);
-        resizeLeft.style.top = px(1);
-        resizeLeft.style.bottom = px(0);
-        resizeLeft.style.width = px(1);
-        resizeLeft.style.borderInline = "solid 1px #0000"
 
-        const resizeLeftHitbox = document.createElement("div");
+        const resizeLeftHitbox = createElement("div", resizeLeft);
         resizeLeftHitbox.className = "resizeLineHitbox";
-        resizeLeftHitbox.style.left = px(-5);
-        resizeLeftHitbox.style.top = px(this.stTextSize - 2);
-        resizeLeftHitbox.style.bottom = px(this.stTextSize - 1);
-        resizeLeftHitbox.style.width = px(8);
-        //resizeLeftHitbox.style.cursor = "ew-resize";
 
-        resizeLeft.appendChild(resizeLeftHitbox);
+        buttonMaker(resizeLeftHitbox, {
+            idle: [{
+                element: resizeLeft,
+                style: () => ({
+                    left: px(-1),
+                    top: px(1),
+                    bottom: px(0),
+                    width: px(1),
+                    borderInline: "solid 1px #0000",
+                    backgroundColor: "#0000"
+                })
+            }, {
+                element: resizeLeftHitbox,
+                style: () => ({
+                    left: px(-5),
+                    top: px(this.stTextSize - 1),
+                    bottom: px(this.stTextSize - 2),
+                    width: px(8)
+                })
+            }, { element: document.body, style: () => ({ cursor: "auto", }) }],
+            hover: [{
+                element: resizeLeft, condition: () => (!this.collapse),
+                style: () => ({
+                    backgroundColor: rgbaString(this.stColor.SeparatorHovered),
+                    borderColor: rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5)
+                })
+            }, { element: document.body, condition: () => (!this.collapse), style: () => ({ cursor: (this.size.x === 32) ? "w-resize" : "ew-resize" }) }],
+            active: [{
+                element: resizeLeft, condition: () => (!this.collapse),
+                style: () => ({
+                    backgroundColor: rgbaString(this.stColor.SeparatorActive),
+                    borderColor: rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5),
+                })
+            }]
+        }, {
+            mousedown: (e) => {
+                if (this.collapse) startMovin(e); else startResizin(e, 4);
+            }
+        }, true)
 
         // right
-        const resizeRight = document.createElement("div");
+        const resizeRight = createElement("div", base);
         resizeRight.className = "resizeLine";
-        resizeRight.style.right = px(-1);
-        resizeRight.style.top = px(1);
-        resizeRight.style.bottom = px(0);
-        resizeRight.style.width = px(1);
-        resizeRight.style.borderInline = "solid 1px #0000";
 
-        const resizeRightHitbox = document.createElement("div");
+        const resizeRightHitbox = createElement("div", resizeRight);
         resizeRightHitbox.className = "resizeLineHitbox";
-        resizeRightHitbox.style.right = px(-5);
-        resizeRightHitbox.style.top = px(this.stTextSize - 2);
-        resizeRightHitbox.style.bottom = px(this.stTextSize - 1);
-        resizeRightHitbox.style.width = px(8);
-        //resizeRightHitbox.style.cursor = "ew-resize";
 
-        resizeRight.appendChild(resizeRightHitbox);
-
-        // some functions
-
-        const toggleResizeButtons = (state) => {
-            if (state) {
-                resizeRightHitbox.display = "none";
+        buttonMaker(resizeRightHitbox, {
+            idle: [{
+                element: resizeRight,
+                style: () => ({
+                    right: px(-1),
+                    top: px(1),
+                    bottom: px(0),
+                    width: px(1),
+                    borderInline: "solid 1px #0000",
+                    backgroundColor: "#0000"
+                })
+            }, {
+                element: resizeRightHitbox,
+                style: () => ({
+                    right: px(-5),
+                    top: px(this.stTextSize - 1),
+                    bottom: px(this.stTextSize - 2),
+                    width: px(8)
+                })
+            }, { element: document.body, style: () => ({ cursor: "auto", }) }],
+            hover: [{
+                element: resizeRight, condition: () => (!this.collapse),
+                style: () => ({
+                    backgroundColor: rgbaString(this.stColor.SeparatorHovered),
+                    borderColor: rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5)
+                })
+            }, { element: document.body, condition: () => (!this.collapse), style: () => ({ cursor: (this.size.x === 32) ? "e-resize" : "ew-resize" }) }],
+            active: [{
+                element: resizeRight, condition: () => (!this.collapse),
+                style: () => ({
+                    backgroundColor: rgbaString(this.stColor.SeparatorActive),
+                    borderColor: rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5),
+                })
+            }]
+        }, {
+            mousedown: (e) => {
+                if (this.collapse) startMovin(e); else startResizin(e, 5);
             }
-        }
-
-        // mouse events
-
-        // bottom right
-        resizeBottomRight.addEventListener("mouseenter", () => {
-            if (!resizeTarget && !this.collapse) {
-                resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
-                document.body.style.cursor = (this.size.x === 32 && this.size.y === 32) ? "se-resize" : "nwse-resize";
-            }
-        })
-        resizeBottomRight.addEventListener("mouseleave", () => {
-            if (!resizeTarget) {
-                resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGrip);
-                document.body.style.cursor = "auto";
-            }
-        })
-        resizeBottomRight.addEventListener("mousedown", (e) => {
-            if (e.button === 0 && !resizeTarget) {
-                //resizeBottomRight.setAttribute("active", "1");
-                resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGripActive);
-                this.MakeActive();
-                resizeTarget = this;
-                resizeFlag = 0;
-                mouseStartPosX = e.clientX;
-                mouseStartPosY = e.clientY;
-                frameStartPosX = this.position.x;
-                frameStartPosY = this.position.y;
-                frameStartSizeX = this.size.x;
-                frameStartSizeY = this.size.y;
-            };
-        });
-
-        // bottom left
-        resizeBottomLeft.addEventListener("mouseenter", () => {
-            if (!resizeTarget && !this.collapse) {
-                resizeTriangleLeftFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
-                document.body.style.cursor = (this.size.x === 32 && this.size.y === 32) ? "sw-resize" : "nesw-resize";
-            }
-        })
-        resizeBottomLeft.addEventListener("mouseleave", () => {
-            if (!resizeTarget) {
-                resizeTriangleLeftFrame.style.fill = "#0000";
-                document.body.style.cursor = "auto";
-            }
-        })
-        resizeBottomLeft.addEventListener("mousedown", (e) => {
-            if (e.button === 0 && !resizeTarget) {
-                //resizeBottomLeft.setAttribute("active", "1");
-                resizeTriangleLeftFrame.style.fill = rgbaString(this.stColor.ResizeGripActive);
-                this.MakeActive();
-                resizeTarget = this;
-                resizeFlag = 1;
-                mouseStartPosX = e.clientX;
-                mouseStartPosY = e.clientY;
-                frameStartPosX = this.position.x;
-                frameStartPosY = this.position.y;
-                frameStartSizeX = this.size.x;
-                frameStartSizeY = this.size.y;
-            };
-        });
-
-        // top
-        resizeTopHitbox.addEventListener("mouseenter", () => {
-            if (!resizeTarget && !this.collapse) {
-                resizeTop.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
-                resizeTop.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
-                document.body.style.cursor = (this.size.y === 32) ? "n-resize" : "ns-resize";
-            }
-        })
-        resizeTopHitbox.addEventListener("mouseleave", () => {
-            if (!resizeTarget) {
-                resizeTop.style.backgroundColor = "#0000";
-                resizeTop.style.borderColor = "#0000";
-                document.body.style.cursor = "auto";
-            }
-        })
-        resizeTopHitbox.addEventListener("mousedown", (e) => {
-            if (e.button === 0 && !resizeTarget) {
-                resizeTop.style.backgroundColor = rgbaString(this.stColor.SeparatorActive);
-                resizeTop.style.borderColor = rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5);
-                this.MakeActive();
-                resizeTarget = this;
-                resizeFlag = 2;
-                mouseStartPosX = e.clientX;
-                mouseStartPosY = e.clientY;
-                frameStartPosX = this.position.x;
-                frameStartPosY = this.position.y;
-                frameStartSizeX = this.size.x;
-                frameStartSizeY = this.size.y;
-            }
-        })
-
-        // bottom
-        resizeBottomHitbox.addEventListener("mouseenter", () => {
-            if (!resizeTarget && !this.collapse) {
-                resizeBottom.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
-                resizeBottom.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
-                document.body.style.cursor = (this.size.y === 32) ? "s-resize" : "ns-resize";
-            }
-        })
-        resizeBottomHitbox.addEventListener("mouseleave", () => {
-            if (!resizeTarget) {
-                resizeBottom.style.backgroundColor = "#0000";
-                resizeBottom.style.borderColor = "#0000";
-                document.body.style.cursor = "auto";
-            }
-        })
-        resizeBottomHitbox.addEventListener("mousedown", (e) => {
-            if (e.button === 0 && !resizeTarget) {
-                resizeBottom.style.backgroundColor = rgbaString(this.stColor.SeparatorActive);
-                resizeBottom.style.borderColor = rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5);
-                this.MakeActive();
-                resizeTarget = this;
-                resizeFlag = 3;
-                mouseStartPosX = e.clientX;
-                mouseStartPosY = e.clientY;
-                frameStartPosX = this.position.x;
-                frameStartPosY = this.position.y;
-                frameStartSizeX = this.size.x;
-                frameStartSizeY = this.size.y;
-            }
-        })
-
-        // left
-        resizeLeftHitbox.addEventListener("mouseenter", () => {
-            if (!resizeTarget && !this.collapse) {
-                resizeLeft.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
-                resizeLeft.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
-                document.body.style.cursor = (this.size.x === 32) ? "w-resize" : "ew-resize";
-            }
-        })
-        resizeLeftHitbox.addEventListener("mouseleave", () => {
-            if (!resizeTarget) {
-                resizeLeft.style.backgroundColor = "#0000";
-                resizeLeft.style.borderColor = "#0000";
-                document.body.style.cursor = "auto";
-            }
-        })
-        resizeLeftHitbox.addEventListener("mousedown", (e) => {
-            if (e.button === 0 && !resizeTarget) {
-                resizeLeft.style.backgroundColor = rgbaString(this.stColor.SeparatorActive);
-                resizeLeft.style.borderColor = rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5);
-                this.MakeActive();
-                resizeTarget = this;
-                resizeFlag = 4;
-                mouseStartPosX = e.clientX;
-                mouseStartPosY = e.clientY;
-                frameStartPosX = this.position.x;
-                frameStartPosY = this.position.y;
-                frameStartSizeX = this.size.x;
-                frameStartSizeY = this.size.y;
-            }
-        })
-
-        // right
-        resizeRightHitbox.addEventListener("mouseenter", () => {
-            if (!resizeTarget && !this.collapse) {
-                resizeRight.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
-                resizeRight.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
-                document.body.style.cursor = (this.size.x === 32) ? "e-resize" : "ew-resize";
-            }
-        })
-        resizeRightHitbox.addEventListener("mouseleave", () => {
-            if (!resizeTarget) {
-                resizeRight.style.backgroundColor = "#0000";
-                resizeRight.style.borderColor = "#0000";
-                document.body.style.cursor = "auto";
-            }
-        })
-        resizeRightHitbox.addEventListener("mousedown", (e) => {
-            if (e.button === 0 && !resizeTarget) {
-                resizeRight.style.backgroundColor = rgbaString(this.stColor.SeparatorActive);
-                resizeRight.style.borderColor = rgbString(this.stColor.SeparatorActive, (this.stColor.SeparatorActive.a / 255) * 0.5);
-                this.MakeActive();
-                resizeTarget = this;
-                resizeFlag = 5;
-                mouseStartPosX = e.clientX;
-                mouseStartPosY = e.clientY;
-                frameStartPosX = this.position.x;
-                frameStartPosY = this.position.y;
-                frameStartSizeX = this.size.x;
-                frameStartSizeY = this.size.y;
-            }
-        })
-
-        // mouse exit
-        DebugGuiFrame.addEventListener("mouseup", (e) => {
-            /*resizeBottomRight.removeAttribute("active");
-            resizeBottomLeft.removeAttribute("active");*/
-            //document.body.style.cursor = "auto";
-
-            if (e.target === resizeBottomRight && !this.collapse) {
-                resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
-                document.body.style.cursor = (this.size.x === 32 && this.size.y === 32) ? "se-resize" : "nwse-resize";
-            } else {
-                resizeTriangleRightFrame.style.fill = rgbaString(this.stColor.ResizeGrip);
-            }
-
-            if (e.target === resizeBottomLeft && !this.collapse) {
-                resizeTriangleLeftFrame.style.fill = rgbaString(this.stColor.ResizeGripHovered);
-                document.body.style.cursor = (this.size.x === 32 && this.size.y === 32) ? "sw-resize" : "nesw-resize";
-            } else {
-                resizeTriangleLeftFrame.style.fill = "#0000";
-            }
-
-            if (e.target === resizeTopHitbox && !this.collapse) {
-                resizeTop.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
-                resizeTop.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
-                document.body.style.cursor = (this.size.y === 32) ? "n-resize" : "ns-resize";
-            } else {
-                resizeTop.style.backgroundColor = "#0000";
-                resizeTop.style.borderColor = "#0000";
-            }
-
-            if (e.target === resizeBottomHitbox && !this.collapse) {
-                resizeBottom.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
-                resizeBottom.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
-                document.body.style.cursor = (this.size.y === 32) ? "s-resize" : "ns-resize";
-            } else {
-                resizeBottom.style.backgroundColor = "#0000";
-                resizeBottom.style.borderColor = "#0000";
-            }
-
-            if (e.target === resizeLeftHitbox && !this.collapse) {
-                resizeLeft.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
-                resizeLeft.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
-                document.body.style.cursor = (this.size.x === 32) ? "w-resize" : "ew-resize";
-            } else {
-                resizeLeft.style.backgroundColor = "#0000";
-                resizeLeft.style.borderColor = "#0000";
-            }
-
-            if (e.target === resizeRightHitbox && !this.collapse) {
-                resizeRight.style.backgroundColor = rgbaString(this.stColor.SeparatorHovered);
-                resizeRight.style.borderColor = rgbString(this.stColor.SeparatorHovered, (this.stColor.SeparatorHovered.a / 255) * 0.5);
-                document.body.style.cursor = (this.size.x === 32) ? "e-resize" : "ew-resize";
-            } else {
-                resizeRight.style.backgroundColor = "#0000";
-                resizeRight.style.borderColor = "#0000";
-            }
-        })
-
+        }, true)
         // #endregion
 
-        base.appendChild(resizeBottomLeft);
-        base.appendChild(resizeBottomRight);
-        base.appendChild(resizeTop);
-        base.appendChild(resizeBottom);
-        base.appendChild(resizeLeft);
-        base.appendChild(resizeRight);
+        // extra hitboxes to move the windows
+        const leftMoveHitbox = createElement("div", base);
+        leftMoveHitbox.className = "debugGuiWindow moveHitbox";
+
+        leftMoveHitbox.style.height = px(this.stTextSize + 4);
+        leftMoveHitbox.style.left = px(-5);
+        leftMoveHitbox.style.top = px(-5);
+
+        const rightMoveHitbox = createElement("div", base);
+        rightMoveHitbox.className = "debugGuiWindow moveHitbox";
+
+        rightMoveHitbox.style.height = px(this.stTextSize + 4);
+        rightMoveHitbox.style.right = px(-5);
+        rightMoveHitbox.style.top = px(-5);
+
+        leftMoveHitbox.addEventListener("mousedown", (e) => {
+            if (e.button === 0 && !moveTarget && e.target !== resizeBottomRight && e.target !== resizeBottomLeft
+                && e.target !== resizeTopHitbox && e.target !== resizeBottomHitbox && e.target !== resizeLeftHitbox && e.target !== resizeRightHitbox
+                && e.target !== closeBtnEl)
+                startMovin(e);
+        });
+
+        rightMoveHitbox.addEventListener("mousedown", (e) => {
+            if (e.button === 0 && !moveTarget && e.target !== resizeBottomRight && e.target !== resizeBottomLeft
+                && e.target !== resizeTopHitbox && e.target !== resizeBottomHitbox && e.target !== resizeLeftHitbox && e.target !== resizeRightHitbox
+                && e.target !== closeBtnEl)
+                startMovin(e);
+        });
+
+        base.addEventListener("mousedown", (e) => {
+            if (e.button === 0 && !moveTarget)
+                if (e.target === collapseBtnEl)
+                    startMovin(e, true);
+                else if (e.target !== resizeBottomRight && e.target !== resizeBottomLeft
+                    && e.target !== resizeTopHitbox && e.target !== resizeBottomHitbox && e.target !== resizeLeftHitbox && e.target !== resizeRightHitbox
+                    && e.target !== closeBtnEl)
+                    startMovin(e);
+        });
 
         content.appendChild(titleBar);
         content.appendChild(innerFrame);
@@ -973,15 +1193,13 @@ DebugGui.Window = class extends DebugGui.__WidgetManager {
         DebugGuiFrame.appendChild(base);
 
         base.style.zIndex = windowCount;
-        
+
         this.gui = base;
         this.gui_titlebar = titleBar;
-        this.gui_resize_up = resizeTopHitbox;
-        this.gui_resize_down = resizeBottomHitbox;
-        this.gui_resize_left = resizeLeftHitbox;
-        this.gui_resize_right = resizeRightHitbox;
-        this.gui_resize_down_left = resizeBottomLeft;
-        this.gui_resize_down_right = resizeBottomRight;
+
+        this.gui_resizeBottomRightBtn = resizeBottomRightBtn;
+        this.gui_collapseTriangle = collapseTriangle;
+
         this.active = true;
 
         windowObjects.forEach((w) => {

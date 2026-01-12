@@ -1,10 +1,32 @@
+@font-face {
+    font-family: xkcd-script;
+    src: url('../fonts/xkcd-script.ttf') format('woff');
+}
+
+@font-face {
+    font-family: proggy-clean;
+    src: url('../fonts/ProggyClean.ttf') format('woff');
+}
+
+svg {
+    pointer-events: none;
+}
+
 #debugGuiFrame {
     position: fixed;
     width: 100vw;
     height: 100vh;
     z-index: 100;
     /*background-color: rgb(115,140,153,1);*/
+    overflow: hidden;
     background-color: rgb(50, 50, 65,1);
+    font-family: proggy-clean, xkcd-script, Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.debugGuiWindow .textLabel {
+    position: absolute;
+    height: 100%;
+    align-items: center;text-overflow: ellipsis;
 }
 
 .debugGuiWindow {
@@ -34,6 +56,17 @@
     box-sizing: border-box;
     position: absolute;
     width: 100%;
+    user-select: none;
+}
+
+.debugGuiWindow .titleBar .barButton {
+    box-sizing: border-box;
+    position: absolute;
+    pointer-events: all;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgb(66,150,250,1);
+    z-index: 200;
 }
 
 .debugGuiWindow .innerFrame {
@@ -78,4 +111,11 @@
     height: calc(100% - 3px);
     overflow:hidden;
     z-index: 200;
+}
+
+.debugGuiWindow .moveHitbox {
+    position: absolute;
+    /*background-color: rgb(255,255,255,0.5);*/
+    aspect-ratio: 1;
+    z-index: 199;
 }
